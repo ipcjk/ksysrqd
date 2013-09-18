@@ -1,0 +1,2 @@
+obj-m += ksysrqd.o
+
