@@ -71,7 +71,7 @@ static int sysrqd_thread(void *data) {
 
 /* Accept handler */
 static void sysrqd_accept_handler() {
-  int err = 0, len, slen;
+  int err = 0, len;
   struct sockaddr_in sin;
 
   err = kernel_accept(sysrqd_network->my_socket, &sysrqd_network->client_socket,
@@ -80,9 +80,8 @@ static void sysrqd_accept_handler() {
     return;
   }
 
-  slen = sizeof(sin);
   err = kernel_getpeername(sysrqd_network->client_socket,
-                           (struct sockaddr *)&sin, &slen);
+                           (struct sockaddr *)&sin);
 
   if (err < 0) {
     return;
