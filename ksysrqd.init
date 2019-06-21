@@ -3,7 +3,7 @@
 case $1 in
 start)
 	echo 1 > /proc/sys/kernel/sysrq 
-	modprobe ksysrqd
+	modprobe ksysrqd password=t8gzh373
 	;;
 stop)
 	rmmod ksysrqd

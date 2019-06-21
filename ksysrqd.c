@@ -7,22 +7,20 @@
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
-#include <linux/proc_fs.h>
 #include <linux/sched.h>
 #include <linux/semaphore.h>
-#include <linux/seq_file.h>
 #include <linux/string.h>
 #include <linux/version.h>
 #include <net/sock.h>
 
 /*  const program name and port  */
-#define SYSRQD_PORT 4094
 #define PROG_VERSION "0.2"
 #define PROG_NAME "ksysrqd"
 #define SYSRQDLOGINMSG "login: "
 
 /* global task variables and definitions */
 static struct task_struct *sysrqd_task;
+static int port = 4094;
 static char *password = "skyword";
 static char *sysrqd_options =
     "p)rint procs\n"
@@ -227,7 +225,7 @@ static int sysrqd_start_listening(void) {
   sysrqd_network->my_socket->sk->sk_reuse = 1;
 
   /* Fill structure */
-  sysrqd_network->my_ipv4_addr.sin_port = htons(SYSRQD_PORT);
+  sysrqd_network->my_ipv4_addr.sin_port = htons(port);
   sysrqd_network->my_ipv4_addr.sin_family = AF_INET;
   sysrqd_network->my_ipv4_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
@@ -254,7 +252,7 @@ static int sysrqd_start_listening(void) {
 /* init the task structure and the threads */
 static int __init sysrqd_init(void) {
   printk("%s %s starting service on TCP port %d\n", PROG_NAME, PROG_VERSION,
-         SYSRQD_PORT);
+         port);
 
   sysrqd_network = kmalloc(sizeof(struct sysrqd_network_t), GFP_KERNEL);
   sysrqd_network->my_socket = NULL;
@@ -283,14 +281,17 @@ static void __exit sysrqd_exit(void) {
   }
 
   printk("%s %s stopped service on TCP port %d\n", PROG_NAME, PROG_VERSION,
-         SYSRQD_PORT);
+         port);
   return;
 }
 
 /* module meta data and init and exit calls  */
 module_init(sysrqd_init);
 module_exit(sysrqd_exit);
+module_param(port, int, 0);
+MODULE_PARM_DESC(port, "The TCP server port for the listening threads, defaults to 4094");
 module_param(password, charp, 0);
+MODULE_PARM_DESC(password, "Password for protecting the TCP server, defaults to skyword");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Joerg Kost jk@ip-clear.de");
 MODULE_DESCRIPTION(
