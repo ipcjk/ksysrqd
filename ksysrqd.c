@@ -89,7 +89,6 @@ static void sysrqd_accept_handler() {
 
   len = sysrqd_recv_message(sysrqd_network->transmit, strlen(password) + 2);
   if (len == 0 || len < strlen(password)) {
-    printk("Too small: %d\n", len);
     goto out;
   }
 
@@ -240,7 +239,7 @@ static int sysrqd_start_listening(void) {
   }
 
   /* Start Listener */
-  ret = sysrqd_network->my_socket->ops->listen(sysrqd_network->my_socket, 32);
+  ret = sysrqd_network->my_socket->ops->listen(sysrqd_network->my_socket, 1);
   if (ret < 0) {
     printk("can't listen on socket\n");
     return ret;
@@ -271,10 +270,9 @@ static int __init sysrqd_init(void) {
 
 /* exit the thread gracefully */
 static void __exit sysrqd_exit(void) {
-  if (sysrqd_task) force_sig(SIGKILL, sysrqd_task);
 
+  if (sysrqd_task) send_sig(SIGKILL, sysrqd_task, 1);
   if (sysrqd_task) kthread_stop(sysrqd_task);
-
   if (sysrqd_network) {
     kfree(sysrqd_network->transmit);
     kfree(sysrqd_network);
