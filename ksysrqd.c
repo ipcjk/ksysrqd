@@ -14,7 +14,7 @@
 #include <net/sock.h>
 
 /*  const program name and port  */
-#define PROG_VERSION "0.2"
+#define PROG_VERSION "0.3"
 #define PROG_NAME "ksysrqd"
 #define SYSRQDLOGINMSG "login: "
 
@@ -50,13 +50,18 @@ extern void handle_sysrq(int, struct tty_struct *);
 
 /* Main thread to handle things */
 static int sysrqd_thread(void *data) {
+  int ret;
+
   /* Listen & Accept socket */
-  sysrqd_start_listening();
+  ret = sysrqd_start_listening();
+  if (ret < 0)
+    goto out;
 
-  do {
+  while (!kthread_should_stop()) {
     sysrqd_accept_handler();
-  } while (!kthread_should_stop());
+  }
 
+out:
   if (sysrqd_network->my_socket != NULL)
     sock_release(sysrqd_network->my_socket);
   if (sysrqd_network->client_socket != NULL)
@@ -64,7 +69,7 @@ static int sysrqd_thread(void *data) {
 
   sysrqd_network->my_socket = NULL;
   sysrqd_network->client_socket = NULL;
-  return 0;
+  return ret;
 }
 
 /* Accept handler */
@@ -73,8 +78,10 @@ static void sysrqd_accept_handler() {
   struct sockaddr_in sin;
 
   err = kernel_accept(sysrqd_network->my_socket, &sysrqd_network->client_socket,
-                      0);
+                      O_NONBLOCK);
   if (err < 0) {
+    if (err == -EAGAIN || err == -EWOULDBLOCK)
+      msleep_interruptible(100);
     return;
   }
 
@@ -82,7 +89,7 @@ static void sysrqd_accept_handler() {
                            (struct sockaddr *)&sin);
 
   if (err < 0) {
-    return;
+    goto out;
   }
 
   if (sysrqd_send_message(SYSRQDLOGINMSG) <= 0) goto out;
@@ -248,6 +255,7 @@ static int sysrqd_start_listening(void) {
   return ret;
 }
 
+
 /* init the task structure and the threads */
 static int __init sysrqd_init(void) {
   printk("%s %s starting service on TCP port %d\n", PROG_NAME, PROG_VERSION,
@@ -270,8 +278,12 @@ static int __init sysrqd_init(void) {
 
 /* exit the thread gracefully */
 static void __exit sysrqd_exit(void) {
+  /* Wake any blocking client receive.  accept itself is non-blocking. */
+  if (sysrqd_network && sysrqd_network->client_socket)
+    kernel_sock_shutdown(sysrqd_network->client_socket, SHUT_RDWR);
+  if (sysrqd_network && sysrqd_network->my_socket)
+    kernel_sock_shutdown(sysrqd_network->my_socket, SHUT_RDWR);
 
-  if (sysrqd_task) send_sig(SIGKILL, sysrqd_task, 1);
   if (sysrqd_task) kthread_stop(sysrqd_task);
   if (sysrqd_network) {
     kfree(sysrqd_network->transmit);
@@ -294,3 +306,4 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Joerg Kost jk@ip-clear.de");
 MODULE_DESCRIPTION(
     "TCP Daemon, that allows to receive Magic SysKey over Network\n");
+
